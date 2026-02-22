@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}{{ target.domain }} - Target Details{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-home"></i>
+<a href="{{ url_for('dashboard.targets_list') }}" style="color: var(--text-secondary);">Targets</a>
+<i class="fas fa-chevron-right" style="font-size: 10px; color: var(--text-secondary);"></i>
+<span>{{ target.domain }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; justify-content: space-between; align-items: start;">
+        <div>
+            <h1>{{ target.domain }}</h1>
+            <p>{{ target.name }}</p>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <a href="{{ target.program_url }}" target="_blank" class="btn btn-secondary">
+                <i class="fas fa-external-link-alt"></i> Program Page
+            </a>
+            <a href="{{ url_for('dashboard.target_edit', target_id=target.id) }}" class="btn btn-secondary">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Target Statistics -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Subdomains</div>
+        <div class="stat-value">{{ stats.subdomains.total }}</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+            {{ stats.subdomains.alive }} alive
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Endpoints</div>
+        <div class="stat-value">{{ stats.endpoints.total }}</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+            {{ stats.endpoints.with_params }} with parameters
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Attack Candidates</div>
+        <div class="stat-value">{{ stats.candidates.total }}</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+            {{ stats.candidates.pending }} pending review
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Findings</div>
+        <div class="stat-value" style="color: var(--accent-primary);">{{ stats.findings.total }}</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+            {{ stats.findings.critical }} critical, {{ stats.findings.high }} high
+        </div>
+    </div>
+</div>
+
+<!-- Phase Control Panels -->
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 24px;">
+    <!-- Phase 2: Recon Control -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-satellite-dish"></i> Phase 2: Recon Control</h3>
+        </div>
+        <div>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Manually start reconnaissance modules for this target
+            </p>
+            
+            <div id="recon-module-select" style="margin-bottom: 16px;">
+                <div class="form-checkbox" style="margin-bottom: 8px;">
+                    <input type="checkbox" id="recon-subdomain" checked>
+                    <label for="recon-subdomain">Subdomain Enumeration</label>
+                </div>
+                <div class="form-checkbox" style="margin-bottom: 8px;">
+                    <input type="checkbox" id="recon-livehost" checked>
+                    <label for="recon-livehost">Live Host Detection</label>
+                </div>
+                <div class="form-checkbox" style="margin-bottom: 8px;">
+                    <input type="checkbox" id="recon-portscan">
+                    <label for="recon-portscan">Port Scanning</label>
+                </div>
+                <div class="form-checkbox" style="margin-bottom: 8px;">
+                    <input type="checkbox" id="recon-endpoints" checked>
+                    <label for="recon-endpoints">Endpoint Collection</label>
+                </div>
+            </div>
+            
+            <button onclick="startRecon({{ target.id }})" class="btn btn-primary">
+                <i class="fas fa-play"></i> Start Recon
+            </button>
+            <a href="{{ url_for('dashboard.recon_jobs') }}?target_id={{ target.id }}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> View Jobs
+            </a>
+        </div>
+    </div>
+    
+    <!-- Phase 3: Intelligence Control -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-brain"></i> Phase 3: Intelligence Control</h3>
+        </div>
+        <div>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Generate attack candidates from recon data
+            </p>
+            
+            <button onclick="runIntelligence({{ target.id }})" class="btn btn-primary">
+                <i class="fas fa-play"></i> Run Intelligence
+            </button>
+            <a href="{{ url_for('dashboard.intelligence_candidates') }}?target_id={{ target.id }}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> View Candidates
+            </a>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+    <!-- Phase 4: Testing Control -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-vial"></i> Phase 4: Testing Control</h3>
+        </div>
+        <div>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                Test approved attack candidates ({{ stats.candidates.approved }} approved)
+            </p>
+            
+            <button onclick="startTesting({{ target.id }})" class="btn btn-primary" 
+                    {% if stats.candidates.approved == 0 %}disabled{% endif %}>
+                <i class="fas fa-flask"></i> Start Testing
+            </button>
+            <a href="{{ url_for('dashboard.testing_jobs') }}?target_id={{ target.id }}" class="btn btn-secondary">
+                <i class="fas fa-list"></i> View Tests
+            </a>
+        </div>
+    </div>
+    
+    <!-- Findings Summary -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-bug"></i> Verified Findings</h3>
+        </div>
+        <div>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                {{ stats.findings.unreviewed }} findings awaiting human review
+            </p>
+            
+            <a href="{{ url_for('dashboard.findings_list') }}?target_id={{ target.id }}" class="btn btn-primary">
+                <i class="fas fa-flag"></i> Review Findings
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-history"></i> Recent Recon Activity</h3>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Stage</th>
+                    <th>Status</th>
+                    <th>Results</th>
+                    <th>Started</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in recent_jobs %}
+                <tr>
+                    <td>{{ job.stage }}</td>
+                    <td>
+                        <span class="badge badge-{{ 'success' if job.status == 'done' else 'warning' if job.status == 'running' else 'danger' }}">
+                            {{ job.status }}
+                        </span>
+                    </td>
+                    <td>{{ job.results_count }}</td>
+                    <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '-' }}</td>
+                    <td>
+                        {% if job.finished_at and job.started_at %}
+                        {{ ((job.finished_at - job.started_at).total_seconds() / 60)|round(1) }}m
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">
+                        No recon jobs yet
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+async function startRecon(targetId) {
+    const stages = [];
+    if (document.getElementById('recon-subdomain').checked) stages.push('subdomain');
+    if (document.getElementById('recon-livehost').checked) stages.push('livehost');
+    if (document.getElementById('recon-portscan').checked) stages.push('portscan');
+    if (document.getElementById('recon-endpoints').checked) stages.push('endpoints');
+    
+    if (stages.length === 0) {
+        alert('Please select at least one recon module');
+        return;
+    }
+    
+    if (!confirm(`Start recon with ${stages.length} modules?\n\nThis will begin automated reconnaissance. Continue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/recon/${targetId}/start`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({stages: stages})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Recon started successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to start recon', 'danger');
+    }
+}
+
+async function runIntelligence(targetId) {
+    if (!confirm('Run intelligence analysis?\n\nThis will analyze endpoints and generate attack candidates.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/intel/targets/${targetId}/run`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({stages: ['all']})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Intelligence analysis started', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to start intelligence', 'danger');
+    }
+}
+
+async function startTesting(targetId) {
+    if (!confirm('⚠️ START TESTING\n\nThis will test approved attack candidates.\n\nEnsure you have authorization to test this target.\n\nContinue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/testing/targets/${targetId}/test-batch`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Testing started', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to start testing', 'danger');
+    }
+}
+</script>
+{% endblock %}

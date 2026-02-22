@@ -1,0 +1,81 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Targets - Bug Bounty Automation{% endblock %}
+
+{% block content %}
+<div class="targets-page">
+    <div class="page-header">
+        <h1>Targets</h1>
+        <a href="{{ url_for('targets.new_target') }}" class="btn btn-primary">+ New Target</a>
+    </div>
+
+    <div class="filters">
+        <a href="{{ url_for('targets.list_targets') }}" 
+           class="filter-btn {% if not status_filter %}active{% endif %}">All</a>
+        <a href="{{ url_for('targets.list_targets', status='active') }}" 
+           class="filter-btn {% if status_filter == 'active' %}active{% endif %}">Active</a>
+        <a href="{{ url_for('targets.list_targets', status='paused') }}" 
+           class="filter-btn {% if status_filter == 'paused' %}active{% endif %}">Paused</a>
+    </div>
+
+    {% if targets %}
+        <div class="targets-grid">
+            {% for target in targets %}
+            <div class="card target-card">
+                <div class="card-header">
+                    <div>
+                        <h3>
+                            <a href="{{ url_for('targets.view_target', target_id=target.id) }}">
+                                {{ target.name }}
+                            </a>
+                        </h3>
+                        <p class="text-muted">{{ target.base_domain }}</p>
+                    </div>
+                    <span class="badge badge-{{ 'success' if target.status == 'active' else 'warning' }}">
+                        {{ target.status }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="target-stats">
+                        <div class="stat">
+                            <span class="stat-label">Platform:</span>
+                            <span class="stat-value">{{ target.program_platform }}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Scope Items:</span>
+                            <span class="stat-value">{{ target.in_scope_count }}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Attack Types:</span>
+                            <span class="stat-value">{{ target.enabled_attacks_count }}</span>
+                        </div>
+                    </div>
+                    {% if target.description %}
+                    <p class="target-description">{{ target.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <span class="text-muted">Created {{ target.created_at.strftime('%Y-%m-%d') }}</span>
+                    <div class="btn-group">
+                        <a href="{{ url_for('targets.view_target', target_id=target.id) }}" 
+                           class="btn btn-sm btn-secondary">View</a>
+                        <a href="{{ url_for('targets.edit_target', target_id=target.id) }}" 
+                           class="btn btn-sm btn-secondary">Edit</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="card-body">
+                <div class="empty-state">
+                    <h2>No targets found</h2>
+                    <p>Create your first target to start your bug bounty automation.</p>
+                    <a href="{{ url_for('targets.new_target') }}" class="btn btn-primary">Create Target</a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

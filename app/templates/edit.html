@@ -1,0 +1,65 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Edit {{ target.name }} - Bug Bounty Automation{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <div class="page-header">
+        <h1>Edit Target</h1>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('targets.edit_target', target_id=target.id) }}">
+                <div class="form-group">
+                    <label for="name">Target Name *</label>
+                    <input type="text" id="name" name="name" class="form-control" required 
+                           value="{{ target.name }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="base_domain">Base Domain *</label>
+                    <input type="text" id="base_domain" name="base_domain" class="form-control" required 
+                           value="{{ target.base_domain }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="program_platform">Program Platform</label>
+                    <select id="program_platform" name="program_platform" class="form-control">
+                        <option value="Self" {% if target.program_platform == 'Self' %}selected{% endif %}>Self-Hosted / Private</option>
+                        <option value="HackerOne" {% if target.program_platform == 'HackerOne' %}selected{% endif %}>HackerOne</option>
+                        <option value="Bugcrowd" {% if target.program_platform == 'Bugcrowd' %}selected{% endif %}>Bugcrowd</option>
+                        <option value="Intigriti" {% if target.program_platform == 'Intigriti' %}selected{% endif %}>Intigriti</option>
+                        <option value="YesWeHack" {% if target.program_platform == 'YesWeHack' %}selected{% endif %}>YesWeHack</option>
+                        <option value="Synack" {% if target.program_platform == 'Synack' %}selected{% endif %}>Synack</option>
+                        <option value="Other" {% if target.program_platform == 'Other' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status" class="form-control">
+                        <option value="active" {% if target.status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="paused" {% if target.status == 'paused' %}selected{% endif %}>Paused</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" class="form-control" rows="3">{{ target.description or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" class="form-control" rows="4">{{ target.notes or '' }}</textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <a href="{{ url_for('targets.view_target', target_id=target.id) }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

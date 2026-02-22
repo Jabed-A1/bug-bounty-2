@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Bug Bounty Platform{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-home"></i>
+<span>Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Command Center</h1>
+    <p>Full operational control over all bug bounty automation phases</p>
+</div>
+
+<!-- Overall Statistics -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-crosshairs"></i></div>
+        <div class="stat-label">Active Targets</div>
+        <div class="stat-value">{{ stats.targets.active }}</div>
+        <a href="{{ url_for('dashboard.targets_list') }}" class="btn btn-secondary btn-sm" style="margin-top: 12px;">
+            Manage Targets
+        </a>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-satellite-dish"></i></div>
+        <div class="stat-label">Recon Jobs Running</div>
+        <div class="stat-value" style="color: var(--accent-warning);">{{ stats.recon.jobs_running }}</div>
+        <a href="{{ url_for('dashboard.recon_jobs') }}" class="btn btn-secondary btn-sm" style="margin-top: 12px;">
+            View Jobs
+        </a>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-bullseye"></i></div>
+        <div class="stat-label">Pending Candidates</div>
+        <div class="stat-value" style="color: var(--accent-info);">{{ stats.intelligence.candidates_pending }}</div>
+        <a href="{{ url_for('dashboard.intelligence_candidates') }}?reviewed=false" class="btn btn-secondary btn-sm" style="margin-top: 12px;">
+            Review Now
+        </a>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-bug"></i></div>
+        <div class="stat-label">Unreviewed Findings</div>
+        <div class="stat-value" style="color: var(--accent-danger);">{{ stats.testing.findings_unreviewed }}</div>
+        <a href="{{ url_for('dashboard.findings_list') }}?reviewed=false" class="btn btn-secondary btn-sm" style="margin-top: 12px;">
+            Review Findings
+        </a>
+    </div>
+</div>
+
+<!-- Phase Status Cards -->
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 24px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-chart-line"></i> Recon Progress</h3>
+        </div>
+        <div style="padding: 16px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <span style="color: var(--text-secondary);">Subdomains Discovered</span>
+                <strong>{{ stats.recon.subdomains_found }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <span style="color: var(--text-secondary);">Endpoints Found</span>
+                <strong>{{ stats.recon.endpoints_found }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-secondary);">Active Jobs</span>
+                <strong style="color: var(--accent-warning);">{{ stats.recon.jobs_running }}</strong>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-shield-alt"></i> Testing Status</h3>
+        </div>
+        <div style="padding: 16px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <span style="color: var(--text-secondary);">Candidates Approved</span>
+                <strong>{{ stats.intelligence.candidates_approved }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                <span style="color: var(--text-secondary);">Tests Running</span>
+                <strong style="color: var(--accent-warning);">{{ stats.testing.jobs_running }}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-secondary);">Total Findings</span>
+                <strong style="color: var(--accent-primary);">{{ stats.testing.findings_total }}</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-history"></i> Recent Recon Jobs</h3>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Stage</th>
+                        <th>Target</th>
+                        <th>Status</th>
+                        <th>Started</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_jobs %}
+                    <tr>
+                        <td>{{ job.stage }}</td>
+                        <td>{{ job.target.domain }}</td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if job.status == 'done' else 'warning' if job.status == 'running' else 'danger' }}">
+                                {{ job.status }}
+                            </span>
+                        </td>
+                        <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-secondary);">No recent jobs</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-bug"></i> Recent Findings</h3>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Severity</th>
+                        <th>Confidence</th>
+                        <th>Discovered</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for finding in recent_findings %}
+                    <tr>
+                        <td>{{ finding.attack_type }}</td>
+                        <td>
+                            <span class="badge badge-{{ 'danger' if finding.severity in ['critical', 'high'] else 'warning' }}">
+                                {{ finding.severity }}
+                            </span>
+                        </td>
+                        <td>{{ finding.confidence_score }}%</td>
+                        <td>{{ finding.discovered_at.strftime('%Y-%m-%d %H:%M') if finding.discovered_at else '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-secondary);">No findings yet</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-bolt"></i> Quick Actions</h3>
+    </div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a href="{{ url_for('dashboard.target_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Add Target
+        </a>
+        <a href="{{ url_for('dashboard.intelligence_candidates') }}?reviewed=false" class="btn btn-secondary">
+            <i class="fas fa-check"></i> Review Candidates
+        </a>
+        <a href="{{ url_for('dashboard.findings_list') }}?reviewed=false" class="btn btn-secondary">
+            <i class="fas fa-flag"></i> Review Findings
+        </a>
+        <a href="{{ url_for('dashboard.system_logs') }}" class="btn btn-secondary">
+            <i class="fas fa-terminal"></i> View Logs
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,245 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ target.name }} - Bug Bounty Automation{% endblock %}
+
+{% block content %}
+<div class="target-detail-page">
+    <div class="page-header">
+        <div>
+            <h1>{{ target.name }}</h1>
+            <p class="text-muted">{{ target.base_domain }}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{{ url_for('targets.edit_target', target_id=target.id) }}" class="btn btn-secondary">Edit</a>
+            <form method="POST" action="{{ url_for('targets.delete_target', target_id=target.id) }}" 
+                  onsubmit="return confirm('Are you sure you want to delete this target? This will also delete all associated scopes, attack profiles, and results.');" 
+                  style="display: inline;">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="info-label">Status:</span>
+            <span class="badge badge-{{ 'success' if target.status == 'active' else 'warning' }}">
+                {{ target.status }}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Platform:</span>
+            <span>{{ target.program_platform }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Created:</span>
+            <span>{{ target.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        </div>
+    </div>
+
+    {% if target.description %}
+    <div class="card">
+        <div class="card-body">
+            <h3>Description</h3>
+            <p>{{ target.description }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Scope Management -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Scope Definition</h2>
+            <button class="btn btn-sm btn-primary" onclick="toggleModal('scopeModal')">+ Add Scope</button>
+        </div>
+        <div class="card-body">
+            <div class="scope-section">
+                <h3 class="section-title">✅ In Scope ({{ in_scope|length }})</h3>
+                {% if in_scope %}
+                    <div class="scope-list">
+                        {% for scope in in_scope %}
+                        <div class="scope-item">
+                            <div class="scope-info">
+                                <span class="scope-badge">{{ scope.scope_type }}</span>
+                                <code class="scope-value">{{ scope.value }}</code>
+                                {% if scope.notes %}
+                                <span class="scope-notes">{{ scope.notes }}</span>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="{{ url_for('targets.delete_scope', target_id=target.id, scope_id=scope.id) }}" 
+                                  onsubmit="return confirm('Delete this scope entry?');" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger">×</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No in-scope items defined</p>
+                {% endif %}
+            </div>
+
+            <div class="scope-section">
+                <h3 class="section-title">❌ Out of Scope ({{ out_of_scope|length }})</h3>
+                {% if out_of_scope %}
+                    <div class="scope-list">
+                        {% for scope in out_of_scope %}
+                        <div class="scope-item out-of-scope">
+                            <div class="scope-info">
+                                <span class="scope-badge">{{ scope.scope_type }}</span>
+                                <code class="scope-value">{{ scope.value }}</code>
+                                {% if scope.notes %}
+                                <span class="scope-notes">{{ scope.notes }}</span>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="{{ url_for('targets.delete_scope', target_id=target.id, scope_id=scope.id) }}" 
+                                  onsubmit="return confirm('Delete this scope entry?');" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger">×</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No out-of-scope items defined</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Attack Profiles -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Attack Profiles</h2>
+        </div>
+        <div class="card-body">
+            <div class="attack-profiles">
+                {% for profile in attack_profiles %}
+                <div class="attack-profile-item {% if profile.enabled %}enabled{% else %}disabled{% endif %}">
+                    <div class="profile-header">
+                        <div class="profile-info">
+                            <h4>{{ profile.attack_type }}</h4>
+                            <span class="profile-status">
+                                {{ 'Enabled' if profile.enabled else 'Disabled' }}
+                            </span>
+                        </div>
+                        <form method="POST" action="{{ url_for('targets.toggle_attack_profile', target_id=target.id, profile_id=profile.id) }}">
+                            <button type="submit" class="btn btn-sm btn-{{ 'warning' if profile.enabled else 'success' }}">
+                                {{ 'Disable' if profile.enabled else 'Enable' }}
+                            </button>
+                        </form>
+                    </div>
+                    <div class="profile-settings">
+                        <span class="setting">Rate Limit: {{ profile.rate_limit }} req/s</span>
+                        <span class="setting">Max Threads: {{ profile.max_threads }}</span>
+                    </div>
+                    {% if profile.notes %}
+                    <p class="profile-notes">{{ profile.notes }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Scan Results -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Recent Scan Results</h2>
+        </div>
+        <div class="card-body">
+            {% if recent_scans %}
+                <div class="results-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Attack Type</th>
+                                <th>Status</th>
+                                <th>Findings</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in recent_scans %}
+                            <tr>
+                                <td>{{ scan.attack_type }}</td>
+                                <td><span class="badge badge-{{ scan.status }}">{{ scan.status }}</span></td>
+                                <td>{{ scan.vulnerabilities_found or 0 }}</td>
+                                <td>{{ scan.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted">No scan results yet</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Scope Modal -->
+<div id="scopeModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Scope Entry</h3>
+            <button class="close-modal" onclick="toggleModal('scopeModal')">×</button>
+        </div>
+        <form method="POST" action="{{ url_for('targets.add_scope', target_id=target.id) }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="scope_type">Scope Type</label>
+                    <select id="scope_type" name="scope_type" class="form-control" required>
+                        {% for type in scope_types %}
+                        <option value="{{ type }}">{{ type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="value">Value</label>
+                    <input type="text" id="value" name="value" class="form-control" required 
+                           placeholder="e.g., *.example.com or https://api.example.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="in_scope">Status</label>
+                    <select id="in_scope" name="in_scope" class="form-control">
+                        <option value="true">In Scope</option>
+                        <option value="false">Out of Scope</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="priority">Priority (1-10)</label>
+                    <input type="number" id="priority" name="priority" class="form-control" 
+                           min="1" max="10" value="5">
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" class="form-control" rows="2" 
+                              placeholder="Optional notes"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Add Scope</button>
+                <button type="button" class="btn btn-secondary" onclick="toggleModal('scopeModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleModal(modalId) {
+    const modal = document.getElementById(modalId);
+    modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

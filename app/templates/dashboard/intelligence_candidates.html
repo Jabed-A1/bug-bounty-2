@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+
+{% block title %}Attack Candidates - Phase 3{% endblock %}
+
+{% block breadcrumb %}
+<i class="fas fa-home"></i>
+<a href="{{ url_for('dashboard.index') }}" style="color: var(--text-secondary);">Dashboard</a>
+<i class="fas fa-chevron-right" style="font-size: 10px; color: var(--text-secondary);"></i>
+<span>Attack Candidates</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Attack Candidate Review</h1>
+    <p>Review and approve candidates for Phase 4 testing - Human approval required</p>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-filter"></i> Filters</h3>
+    </div>
+    <form method="GET" style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <select name="target_id" class="form-select">
+            <option value="">All Targets</option>
+            {% for target in targets %}
+            <option value="{{ target.id }}" {% if request.args.get('target_id')|int == target.id %}selected{% endif %}>
+                {{ target.domain }}
+            </option>
+            {% endfor %}
+        </select>
+        
+        <select name="attack_type" class="form-select">
+            <option value="">All Attack Types</option>
+            {% for at in attack_types %}
+            <option value="{{ at }}" {% if request.args.get('attack_type') == at %}selected{% endif %}>
+                {{ at }}
+            </option>
+            {% endfor %}
+        </select>
+        
+        <select name="reviewed" class="form-select">
+            <option value="false" {% if request.args.get('reviewed') == 'false' %}selected{% endif %}>Pending Only</option>
+            <option value="" {% if not request.args.get('reviewed') %}selected{% endif %}>All</option>
+            <option value="true" {% if request.args.get('reviewed') == 'true' %}selected{% endif %}>Reviewed</option>
+        </select>
+        
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search"></i> Apply Filters
+        </button>
+        
+        <button type="button" id="auto-refresh-btn" onclick="toggleAutoRefresh()" class="btn btn-secondary btn-sm">
+            <i class="fas fa-sync-alt"></i> Auto-Refresh
+        </button>
+    </form>
+</div>
+
+<!-- Bulk Actions -->
+{% if candidates|selectattr('reviewed', 'equalto', False)|list %}
+<div class="card">
+    <div style="display: flex; gap: 12px;">
+        <button onclick="bulkApprove()" class="btn btn-primary">
+            <i class="fas fa-check-double"></i> Bulk Approve Selected
+        </button>
+        <button onclick="bulkReject()" class="btn btn-danger">
+            <i class="fas fa-times"></i> Bulk Reject Selected
+        </button>
+        <span style="margin-left: auto; color: var(--text-secondary);">
+            <span id="selected-count">0</span> selected
+        </span>
+    </div>
+</div>
+{% endif %}
+
+<!-- Candidates Table -->
+<div class="card">
+    <div class="table-wrapper">
+        <table id="candidates-table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all" onclick="toggleSelectAll()"></th>
+                    <th>ID</th>
+                    <th>Attack Type</th>
+                    <th>Risk Level</th>
+                    <th>Target</th>
+                    <th>Endpoint</th>
+                    <th>Confidence</th>
+                    <th>Reasoning</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidate in candidates %}
+                <tr>
+                    <td>
+                        {% if not candidate.reviewed %}
+                        <input type="checkbox" class="candidate-checkbox" value="{{ candidate.id }}">
+                        {% endif %}
+                    </td>
+                    <td>{{ candidate.id }}</td>
+                    <td><strong>{{ candidate.attack_type }}</strong></td>
+                    <td>
+                        <span class="badge badge-{{ 'danger' if candidate.risk_level in ['critical', 'high'] else 'warning' }}">
+                            {{ candidate.risk_level }}
+                        </span>
+                    </td>
+                    <td>{{ candidate.target.domain }}</td>
+                    <td>
+                        <code style="font-size: 11px;">
+                            {{ candidate.cluster.normalized_path if candidate.cluster else '-' }}
+                        </code>
+                    </td>
+                    <td>{{ candidate.confidence_score }}%</td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ candidate.reasoning }}
+                    </td>
+                    <td>
+                        {% if candidate.reviewed %}
+                            {% if candidate.approved_for_testing %}
+                            <span class="badge badge-success">APPROVED</span>
+                            {% else %}
+                            <span class="badge badge-secondary">REJECTED</span>
+                            {% endif %}
+                        {% else %}
+                        <span class="badge badge-warning">PENDING</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not candidate.reviewed %}
+                        <button onclick="approveCandidate({{ candidate.id }})" class="btn btn-primary btn-sm">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                        <button onclick="rejectCandidate({{ candidate.id }})" class="btn btn-danger btn-sm">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                        {% else %}
+                        <button onclick="viewDetails({{ candidate.id }})" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" style="text-align: center; color: var(--text-secondary); padding: 40px;">
+                        No attack candidates found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let selectedCandidates = new Set();
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.candidate-checkbox');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+        if (selectAll.checked) {
+            selectedCandidates.add(parseInt(cb.value));
+        } else {
+            selectedCandidates.delete(parseInt(cb.value));
+        }
+    });
+    
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.candidate-checkbox:checked');
+    selectedCandidates.clear();
+    checkboxes.forEach(cb => selectedCandidates.add(parseInt(cb.value)));
+    document.getElementById('selected-count').textContent = selectedCandidates.size;
+}
+
+document.addEventListener('change', (e) => {
+    if (e.target.classList.contains('candidate-checkbox')) {
+        updateSelectedCount();
+    }
+});
+
+async function approveCandidate(candidateId) {
+    if (!confirm('Approve this candidate for Phase 4 testing?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/intel/candidates/${candidateId}/review`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                approved: true,
+                reviewed_by: 'operator'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Candidate approved', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to approve candidate', 'danger');
+    }
+}
+
+async function rejectCandidate(candidateId) {
+    if (!confirm('Reject this candidate?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/intel/candidates/${candidateId}/review`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                approved: false,
+                reviewed_by: 'operator'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification('Candidate rejected', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Failed to reject candidate', 'danger');
+    }
+}
+
+async function bulkApprove() {
+    if (selectedCandidates.size === 0) {
+        alert('No candidates selected');
+        return;
+    }
+    
+    if (!confirm(`Approve ${selectedCandidates.size} candidates for testing?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/intel/candidates/bulk-review', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                candidate_ids: Array.from(selectedCandidates),
+                approved: true,
+                reviewed_by: 'operator'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification(`${data.count} candidates approved`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Bulk approve failed', 'danger');
+    }
+}
+
+async function bulkReject() {
+    if (selectedCandidates.size === 0) {
+        alert('No candidates selected');
+        return;
+    }
+    
+    if (!confirm(`Reject ${selectedCandidates.size} candidates?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/intel/candidates/bulk-review', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                candidate_ids: Array.from(selectedCandidates),
+                approved: false,
+                reviewed_by: 'operator'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showNotification(`${data.count} candidates rejected`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification('Error: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Bulk reject failed', 'danger');
+    }
+}
+
+function viewDetails(candidateId) {
+    // Would open modal or navigate to detail page
+    alert(`View details for candidate ${candidateId}`);
+}
+
+// Auto-refresh functionality
+window.refreshData = async function() {
+    location.reload();
+};
+</script>
+{% endblock %}

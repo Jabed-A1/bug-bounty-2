@@ -1,0 +1,118 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Dashboard - Bug Bounty Automation{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="page-header">
+        <h1>Dashboard</h1>
+        <a href="{{ url_for('targets.new_target') }}" class="btn btn-primary">+ New Target</a>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-content">
+                <div class="stat-label">Total Targets</div>
+                <div class="stat-value">{{ target_stats.total }}</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-content">
+                <div class="stat-label">Active Targets</div>
+                <div class="stat-value">{{ target_stats.active }}</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+                <div class="stat-label">Total Scans</div>
+                <div class="stat-value">{{ total_scans }}</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-content">
+                <div class="stat-label">Active Scans</div>
+                <div class="stat-value">{{ active_scans }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card">
+            <div class="card-header">
+                <h2>Targets Overview</h2>
+                <a href="{{ url_for('targets.list_targets') }}" class="link">View All →</a>
+            </div>
+            <div class="card-body">
+                {% if targets %}
+                    <div class="target-list">
+                        {% for target in targets[:5] %}
+                        <div class="target-item">
+                            <div class="target-info">
+                                <a href="{{ url_for('targets.view_target', target_id=target.id) }}" class="target-name">
+                                    {{ target.name }}
+                                </a>
+                                <span class="target-domain">{{ target.base_domain }}</span>
+                            </div>
+                            <div class="target-meta">
+                                <span class="badge badge-{{ 'success' if target.status == 'active' else 'warning' }}">
+                                    {{ target.status }}
+                                </span>
+                                <span class="target-platform">{{ target.program_platform }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>No targets yet. Create your first target to get started.</p>
+                        <a href="{{ url_for('targets.new_target') }}" class="btn btn-secondary">Create Target</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Recent Activity</h2>
+            </div>
+            <div class="card-body">
+                {% if recent_scans %}
+                    <div class="activity-list">
+                        {% for scan in recent_scans %}
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                {% if scan.status == 'completed' %}✓
+                                {% elif scan.status == 'running' %}⚡
+                                {% elif scan.status == 'failed' %}✗
+                                {% else %}⏳{% endif %}
+                            </div>
+                            <div class="activity-content">
+                                <div class="activity-title">
+                                    {{ scan.attack_type }} scan on 
+                                    <a href="{{ url_for('targets.view_target', target_id=scan.target_id) }}">
+                                        {{ scan.target.name }}
+                                    </a>
+                                </div>
+                                <div class="activity-time">{{ scan.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                            </div>
+                            <span class="badge badge-{{ scan.status }}">{{ scan.status }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p>No recent activity</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

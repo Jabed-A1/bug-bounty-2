@@ -1,0 +1,668 @@
+{% extends "base.html" %}
+
+{% block title %}Control Center - Bug Bounty Platform{% endblock %}
+
+{% block content %}
+<div class="control-center">
+    <!-- EMERGENCY PANEL -->
+    <div class="emergency-panel">
+        <div class="kill-switch-container {% if kill_switch_active %}active{% endif %}">
+            <button id="kill-switch-btn" class="kill-switch-btn {% if kill_switch_active %}activated{% endif %}" 
+                    onclick="toggleKillSwitch()">
+                <i class="fas fa-power-off"></i>
+                <span>{% if kill_switch_active %}SYSTEM STOPPED{% else %}KILL SWITCH{% endif %}</span>
+            </button>
+            {% if kill_switch_active %}
+            <div class="kill-switch-reason">System is in EMERGENCY STOP mode. No operations are running.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SYSTEM OVERVIEW -->
+    <div class="overview-grid">
+        <div class="panel panel-targets">
+            <h3><i class="fas fa-crosshairs"></i> Targets</h3>
+            <div class="stats">
+                <div class="stat">
+                    <div class="value">{{ stats.targets.total }}</div>
+                    <div class="label">Total</div>
+                </div>
+                <div class="stat success">
+                    <div class="value">{{ stats.targets.enabled }}</div>
+                    <div class="label">Enabled</div>
+                </div>
+                <div class="stat warning">
+                    <div class="value">{{ stats.targets.paused }}</div>
+                    <div class="label">Paused</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-recon">
+            <h3><i class="fas fa-satellite-dish"></i> Recon</h3>
+            <div class="stats">
+                <div class="stat danger">
+                    <div class="value">{{ stats.recon.running }}</div>
+                    <div class="label">Running</div>
+                </div>
+                <div class="stat warning">
+                    <div class="value">{{ stats.recon.queued }}</div>
+                    <div class="label">Queued</div>
+                </div>
+                <div class="stat info">
+                    <div class="value">{{ stats.recon.idle }}</div>
+                    <div class="label">Idle</div>
+                </div>
+                <div class="stat error">
+                    <div class="value">{{ stats.recon.failed }}</div>
+                    <div class="label">Failed</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-intelligence">
+            <h3><i class="fas fa-brain"></i> Intelligence</h3>
+            <div class="stats">
+                <div class="stat">
+                    <div class="value">{{ stats.intelligence.total }}</div>
+                    <div class="label">Candidates</div>
+                </div>
+                <div class="stat warning">
+                    <div class="value">{{ stats.intelligence.pending }}</div>
+                    <div class="label">Pending Review</div>
+                </div>
+                <div class="stat success">
+                    <div class="value">{{ stats.intelligence.approved }}</div>
+                    <div class="label">Approved</div>
+                </div>
+                <div class="stat info">
+                    <div class="value">{{ stats.intelligence.rejected }}</div>
+                    <div class="label">Rejected</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-testing">
+            <h3><i class="fas fa-flask"></i> Testing</h3>
+            <div class="stats">
+                <div class="stat danger">
+                    <div class="value">{{ stats.testing.running }}</div>
+                    <div class="label">Running</div>
+                </div>
+                <div class="stat warning">
+                    <div class="value">{{ stats.testing.queued }}</div>
+                    <div class="label">Queued</div>
+                </div>
+                <div class="stat success">
+                    <div class="value">{{ stats.testing.findings_total }}</div>
+                    <div class="label">Findings</div>
+                </div>
+                <div class="stat alert">
+                    <div class="value">{{ stats.testing.findings_unreviewed }}</div>
+                    <div class="label">Unreviewed</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK ACCESS -->
+    <div class="quick-access">
+        <h3><i class="fas fa-lightning-bolt"></i> Quick Actions</h3>
+        <div class="action-grid">
+            <div class="action-card">
+                <div class="action-header">Phase 1 - Targets</div>
+                <a href="/control/target" class="btn btn-primary btn-sm">Manage Targets</a>
+                <a href="/control/target/1" class="btn btn-secondary btn-sm">Target Dashboard</a>
+            </div>
+            <div class="action-card">
+                <div class="action-header">Phase 2 - Recon</div>
+                <a href="/control/recon/1" class="btn btn-primary btn-sm">Recon Control</a>
+                <a href="/control/monitor/jobs" class="btn btn-secondary btn-sm">Job Monitor</a>
+            </div>
+            <div class="action-card">
+                <div class="action-header">Phase 3 - Intelligence</div>
+                <a href="/control/intelligence/1" class="btn btn-primary btn-sm">Review Candidates</a>
+                <a href="/control/monitor/candidates" class="btn btn-secondary btn-sm">All Candidates</a>
+            </div>
+            <div class="action-card">
+                <div class="action-header">Phase 4 - Testing</div>
+                <a href="/control/testing/1" class="btn btn-primary btn-sm">Testing Control</a>
+                <a href="/control/monitor/findings" class="btn btn-secondary btn-sm">View Findings</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- RECENT ACTIVITY -->
+    <div class="activity-section">
+        <div class="activity-column">
+            <h3><i class="fas fa-history"></i> Recent Recon Jobs</h3>
+            <div class="job-list">
+                {% if recent_jobs %}
+                    {% for job in recent_jobs %}
+                    <div class="job-item status-{{ job.status|lower }}">
+                        <div class="job-header">
+                            <span class="job-module">{{ job.module }}</span>
+                            <span class="job-status">{{ job.status }}</span>
+                        </div>
+                        <div class="job-details">
+                            <small>
+                                Target ID: {{ job.target_id }}
+                                | Results: {{ job.results_count }}
+                                | Created: {{ job.created_at.strftime('%H:%M:%S') }}
+                            </small>
+                        </div>
+                        {% if job.error_message %}
+                        <div class="job-error">{{ job.error_message }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">No recent recon jobs</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="activity-column">
+            <h3><i class="fas fa-flask"></i> Recent Test Jobs</h3>
+            <div class="job-list">
+                {% if recent_tests %}
+                    {% for test in recent_tests %}
+                    <div class="job-item status-{{ test.status|lower }}">
+                        <div class="job-header">
+                            <span class="job-payload">{{ test.payload_category }}</span>
+                            <span class="job-status">{{ test.status }}</span>
+                        </div>
+                        <div class="job-details">
+                            <small>
+                                Candidate ID: {{ test.candidate_id }}
+                                | Requests: {{ test.requests_sent }}
+                                | Created: {{ test.created_at.strftime('%H:%M:%S') }}
+                            </small>
+                        </div>
+                        {% if test.vulnerability_found %}
+                        <span class="badge badge-danger">VULNERABILITY FOUND</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">No recent test jobs</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="activity-column">
+            <h3><i class="fas fa-bug"></i> Latest Findings</h3>
+            <div class="job-list">
+                {% if latest_findings %}
+                    {% for finding in latest_findings %}
+                    <div class="finding-item severity-{{ finding.severity|lower }}">
+                        <div class="finding-header">
+                            <span class="finding-type">{{ finding.vulnerability_type }}</span>
+                            <span class="severity">{{ finding.severity }}</span>
+                        </div>
+                        <div class="finding-details">
+                            <small>
+                                {% if finding.human_reviewed %}
+                                    {% if finding.human_confirmed %}
+                                    <span class="badge badge-success">CONFIRMED</span>
+                                    {% else %}
+                                    <span class="badge badge-warning">UNCONFIRMED</span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="badge badge-info">UNREVIEWED</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">No findings yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- SYSTEM HEALTH -->
+    <div class="panel system-health">
+        <h3><i class="fas fa-heartbeat"></i> System Health</h3>
+        <div class="health-grid">
+            <div class="health-item">
+                <div class="health-label">Database</div>
+                <div class="health-status ok"><i class="fas fa-check-circle"></i> Connected</div>
+            </div>
+            <div class="health-item">
+                <div class="health-label">Kill Switch</div>
+                <div class="health-status {% if kill_switch_active %}critical{% else %}ok{% endif %}">
+                    <i class="fas fa-{% if kill_switch_active %}exclamation-circle{% else %}check-circle{% endif %}"></i>
+                    {% if kill_switch_active %}ACTIVE{% else %}Standby{% endif %}
+                </div>
+            </div>
+            <div class="health-item">
+                <div class="health-label">All Targets</div>
+                <div class="health-status ok"><i class="fas fa-check-circle"></i> monitored</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.control-center {
+    padding: 20px;
+    background: #0a0e27;
+    color: #e0e0e0;
+}
+
+.emergency-panel {
+    margin-bottom: 30px;
+}
+
+.kill-switch-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.kill-switch-btn {
+    padding: 15px 30px;
+    font-size: 18px;
+    font-weight: bold;
+    border: 2px solid #888;
+    border-radius: 8px;
+    background: #1a1f3a;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.kill-switch-btn:hover {
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+    background: #2a1f1f;
+}
+
+.kill-switch-btn.activated {
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+    background: #3d1515;
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+}
+
+.kill-switch-reason {
+    padding: 10px 20px;
+    background: rgba(255, 107, 107, 0.1);
+    border-left: 4px solid #ff6b6b;
+    color: #ff9999;
+    font-weight: 500;
+}
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.panel {
+    background: linear-gradient(135deg, #1a1f3a 0%, #16192b 100%);
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.panel:hover {
+    border-color: #3a5a7a;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.panel h3 {
+    margin: 0 0 15px 0;
+    color: #e0e0e0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 15px;
+}
+
+.stat {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+    border-left: 4px solid #666;
+}
+
+.stat.success { border-left-color: #10b981; }
+.stat.warning { border-left-color: #f59e0b; }
+.stat.danger { border-left-color: #ff6b6b; }
+.stat.error { border-left-color: #ff6b6b; }
+.stat.info { border-left-color: #0ea5e9; }
+.stat.alert { border-left-color: #ff6b6b; }
+
+.stat .value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 5px;
+}
+
+.stat .label {
+    font-size: 12px;
+    color: #b0b0b0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.quick-access {
+    margin-bottom: 30px;
+}
+
+.quick-access h3 {
+    margin-bottom: 20px;
+    color: #e0e0e0;
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.action-card {
+    background: #1a1f3a;
+    border: 1px solid #2a3a5a;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.action-header {
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #a8d8ff;
+    font-size: 14px;
+}
+
+.action-card .btn {
+    display: inline-block;
+    margin: 5px 5px 5px 0;
+}
+
+.activity-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.activity-column {
+    background: #1a1f3a;
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.activity-column h3 {
+    margin: 0 0 15px 0;
+    color: #e0e0e0;
+}
+
+.job-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.job-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 4px solid #666;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.job-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.job-item.status-running { border-left-color: #ff6b6b; }
+.job-item.status-queued { border-left-color: #f59e0b; }
+.job-item.status-done { border-left-color: #10b981; }
+.job-item.status-failed { border-left-color: #ff6b6b; }
+.job-item.status-stopped { border-left-color: #8b5cf6; }
+
+.job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.job-module, .job-payload, .finding-type {
+    font-weight: 600;
+    font-size: 14px;
+    color: #a8d8ff;
+}
+
+.job-status, .severity {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+}
+
+.job-details small {
+    color: #b0b0b0;
+    font-size: 12px;
+}
+
+.job-error {
+    color: #ff9999;
+    font-size: 12px;
+    padding: 6px 0;
+    margin-top: 6px;
+}
+
+.finding-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 4px solid #666;
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.finding-item.severity-critical { border-left-color: #ff1744; }
+.finding-item.severity-high { border-left-color: #ff6b6b; }
+.finding-item.severity-medium { border-left-color: #f59e0b; }
+.finding-item.severity-low { border-left-color: #0ea5e9; }
+.finding-item.severity-info { border-left-color: #666; }
+
+.finding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    color: #669;
+    padding: 20px;
+    font-style: italic;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-right: 5px;
+}
+
+.badge-success { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+.badge-warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+.badge-danger { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+.badge-info { background: rgba(14, 165, 233, 0.2); color: #0ea5e9; }
+
+.system-health {
+    margin-bottom: 20px;
+}
+
+.health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+}
+
+.health-item {
+    text-align: center;
+}
+
+.health-label {
+    font-size: 12px;
+    color: #b0b0b0;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.health-status {
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.health-status.ok {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.health-status.critical {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+}
+
+.btn {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 13px;
+}
+
+.btn-primary {
+    background: #0ea5e9;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0084c9;
+}
+
+.btn-secondary {
+    background: #666;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #777;
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+@media (max-width: 768px) {
+    .overview-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .activity-section {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+// Load kill switch status on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateKillSwitchStatus();
+    // Refresh every 5 seconds
+    setInterval(updateKillSwitchStatus, 5000);
+});
+
+function updateKillSwitchStatus() {
+    fetch('/control/kill-switch/status')
+        .then(r => r.json())
+        .then(data => {
+            const btn = document.getElementById('kill-switch-btn');
+            const banner = document.getElementById('kill-switch-banner');
+            
+            if (data.active) {
+                btn.classList.add('activated');
+                btn.innerHTML = '<i class="fas fa-power-off"></i><span>SYSTEM STOPPED</span>';
+                banner.style.display = 'flex';
+            } else {
+                btn.classList.remove('activated');
+                btn.innerHTML = '<i class="fas fa-power-off"></i><span>KILL SWITCH</span>';
+                banner.style.display = 'none';
+            }
+        });
+}
+
+function toggleKillSwitch() {
+    const btn = document.getElementById('kill-switch-btn');
+    const isActive = btn.classList.contains('activated');
+    
+    if (isActive) {
+        // Deactivate
+        fetch('/control/kill-switch/deactivate', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert('Kill switch deactivated. Operations can resume.');
+                updateKillSwitchStatus();
+            });
+    } else {
+        // Activate - show confirmation
+        const reason = prompt('Enter reason for emergency stop:', 'Manual emergency stop');
+        if (reason) {
+            fetch('/control/kill-switch/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message + '\nJobs stopped: ' + data.jobs_stopped);
+                updateKillSwitchStatus();
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

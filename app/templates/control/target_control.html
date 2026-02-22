@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+
+{% block title %}Target Control - {{ target.name }}{% endblock %}
+
+{% block content %}
+<div class="target-control">
+    <!-- TARGET HEADER WITH CONTROLS -->
+    <div class="target-header">
+        <div class="target-info">
+            <h1><i class="fas fa-crosshairs"></i> {{ target.name }}</h1>
+            <p class="target-domain">{{ target.domain }}</p>
+        </div>
+        <div class="target-controls">
+            <div class="control-group">
+                <label>Status:</label>
+                <div class="status-display">
+                    <span class="status-badge {% if target.enabled %}enabled{% else %}disabled{% endif %}">
+                        {% if target.enabled %}ENABLED{% else %}DISABLED{% endif %}
+                    </span>
+                    <span class="status-badge {% if target.paused %}paused{% else %}active{% endif %}">
+                        {% if target.paused %}PAUSED{% else %}ACTIVE{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="control-group">
+                <button onclick="enableTarget({{ target.id }})" 
+                        {% if target.enabled %}disabled{% endif %}
+                        class="btn btn-success">
+                    <i class="fas fa-check"></i> ENABLE
+                </button>
+                <button onclick="disableTarget({{ target.id }})" 
+                        {% if not target.enabled %}disabled{% endif %}
+                        class="btn btn-warning">
+                    <i class="fas fa-ban"></i> DISABLE
+                </button>
+            </div>
+            <div class="control-group">
+                <button onclick="pauseTarget({{ target.id }})" 
+                        {% if target.paused %}disabled{% endif %}
+                        class="btn btn-danger">
+                    <i class="fas fa-pause"></i> PAUSE ALL
+                </button>
+                <button onclick="resumeTarget({{ target.id }})" 
+                        {% if not target.paused %}disabled{% endif %}
+                        class="btn btn-success">
+                    <i class="fas fa-play"></i> RESUME
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACTIVITY TRACKING -->
+    <div class="activity-tracking">
+        <div class="info-item">
+            <span class="label">Last Action:</span>
+            <span class="value">
+                {% if target.last_action_at %}
+                    {{ target.last_action_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% else %}
+                    Never
+                {% endif %}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="label">Active Jobs:</span>
+            <span class="value">{{ active_recon|length + active_tests|length }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Can Run Jobs:</span>
+            <span class="value {% if target.can_run_jobs %}ok{% else %}blocked{% endif %}">
+                {% if target.can_run_jobs %}✓ YES{% else %}✗ NO{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- ACTIVE JOBS -->
+    {% if active_recon or active_tests %}
+    <div class="panel active-jobs">
+        <h3><i class="fas fa-spinner"></i> Currently Running</h3>
+        <div class="job-grid">
+            {% for job in active_recon %}
+            <div class="job-card">
+                <div class="job-type recon">Recon</div>
+                <div class="job-title">{{ job.module }}</div>
+                <div class="job-status">{{ job.status }}</div>
+                <div class="job-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ job.progress_percent }}%"></div>
+                    </div>
+                    <small>{{ job.progress_percent }}%</small>
+                </div>
+                <div class="job-actions">
+                    <button onclick="stopReconJob({{ job.id }})" class="btn btn-sm btn-danger">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+            
+            {% for test in active_tests %}
+            <div class="job-card">
+                <div class="job-type testing">Testing</div>
+                <div class="job-title">{{ test.payload_category }}</div>
+                <div class="job-status">{{ test.status }}</div>
+                <div class="job-info">
+                    <small>Requests: {{ test.requests_sent }}/{{ test.responses_received }}</small>
+                </div>
+                <div class="job-actions">
+                    <button onclick="stopTestJob({{ test.id }})" class="btn btn-sm btn-danger">
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- SCOPE ENFORCEMENT -->
+    <div class="panel safety-panel">
+        <h3><i class="fas fa-shield-alt"></i> Safety Controls</h3>
+        <div class="safety-grid">
+            <div class="safety-item">
+                <div class="safety-label">Scope Enforcement</div>
+                <div class="safety-status {% if scope_enforcer.enabled %}enabled{% else %}disabled{% endif %}">
+                    {% if scope_enforcer.enabled %}✓ ACTIVE{% else %}✗ DISABLED{% endif %}
+                </div>
+                <div class="safety-info">
+                    Allowed: {{ scope_enforcer.requests_allowed }} | Blocked: {{ scope_enforcer.requests_blocked }}
+                </div>
+            </div>
+            <div class="safety-item">
+                <div class="safety-label">Rate Limiting</div>
+                <div class="safety-status {% if rate_limiter.active %}enabled{% else %}disabled{% endif %}">
+                    {% if rate_limiter.active %}✓ ACTIVE{% else %}✗ DISABLED{% endif %}
+                </div>
+                <div class="safety-info">
+                    {{ rate_limiter.requests_per_second }}/sec | Max jobs: {{ rate_limiter.max_concurrent_jobs }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RECON JOB HISTORY -->
+    <div class="panel job-history">
+        <h3><i class="fas fa-history"></i> Recent Recon Jobs</h3>
+        <table class="job-table">
+            <thead>
+                <tr>
+                    <th>Module</th>
+                    <th>Status</th>
+                    <th>Results</th>
+                    <th>Error</th>
+                    <th>Duration</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if recon_history %}
+                    {% for job in recon_history[:20] %}
+                    <tr class="status-{{ job.status|lower }}">
+                        <td><strong>{{ job.module }}</strong></td>
+                        <td><span class="badge status-{{ job.status|lower }}">{{ job.status }}</span></td>
+                        <td>{{ job.results_count }}</td>
+                        <td class="error-cell">
+                            {% if job.error_message %}
+                                <span class="error-text">{{ job.error_message[:50] }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{% if job.duration_seconds %}{{ job.duration_seconds }}s{% else %}-{% endif %}</td>
+                        <td>{{ job.created_at.strftime('%H:%M:%S') }}</td>
+                        <td>
+                            {% if job.status in ['RUNNING', 'QUEUED'] %}
+                            <button onclick="stopReconJob({{ job.id }})" class="btn btn-sm btn-danger">Stop</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="7" class="empty-cell">No recon jobs yet</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+.target-control {
+    padding: 20px;
+    background: #0a0e27;
+    color: #e0e0e0;
+}
+
+.target-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: linear-gradient(135deg, #1a1f3a 0%, #16192b 100%);
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.target-info h1 {
+    margin: 0 0 5px 0;
+    font-size: 28px;
+}
+
+.target-domain {
+    margin: 0;
+    color: #0ea5e9;
+    font-size: 14px;
+}
+
+.target-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.control-group label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.status-display {
+    display: flex;
+    gap: 10px;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.enabled {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.status-badge.disabled {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff9999;
+}
+
+.status-badge.active {
+    background: rgba(14, 165, 233, 0.2);
+    color: #0ea5e9;
+}
+
+.status-badge.paused {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.activity-tracking {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.info-item {
+    background: #1a1f3a;
+    border: 1px solid #2a3a5a;
+    border-radius: 6px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.info-item .label {
+    color: #888;
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.info-item .value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.info-item .value.ok {
+    color: #10b981;
+}
+
+.info-item .value.blocked {
+    color: #ff6b6b;
+}
+
+.panel {
+    background: #1a1f3a;
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.panel h3 {
+    margin: 0 0 15px 0;
+    color: #e0e0e0;
+}
+
+.active-jobs .job-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.job-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #2a3a5a;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.job-type {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.job-type.recon {
+    background: rgba(14, 165, 233, 0.3);
+    color: #0ea5e9;
+}
+
+.job-type.testing {
+    background: rgba(139, 92, 246, 0.3);
+    color: #a78bfa;
+}
+
+.job-title {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.job-status {
+    font-size: 12px;
+    color: #ff6b6b;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.job-progress {
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    background: rgba(255, 255, 255, 0.1);
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, #0ea5e9, #10b981);
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.progress-bar small {
+    color: #0ea5e9;
+    font-size: 10px;
+}
+
+.job-actions {
+    button {
+        width: 100%;
+    }
+}
+
+.safety-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.safety-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #2a3a5a;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.safety-label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.safety-status {
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.safety-status.enabled {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.safety-status.disabled {
+    background: rgba(255, 107, 107, 0.2);
+    color: #ff9999;
+}
+
+.safety-info {
+    font-size: 12px;
+    color: #aaa;
+}
+
+.job-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.job-table thead {
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid #2a3a5a;
+}
+
+.job-table th {
+    padding: 12px;
+    text-align: left;
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+
+.job-table td {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.job-table tr.status-running {
+    background: rgba(255, 107, 107, 0.05);
+}
+
+.error-cell {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.error-text {
+    color: #ff9999;
+    font-size: 11px;
+}
+
+.empty-cell {
+    text-align: center;
+    color: #666;
+    padding: 40px 12px !important;
+    font-style: italic;
+}
+
+.btn {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-success { background: #10b981; color: white; }
+.btn-success:hover { background: #059669; }
+.btn-success:disabled { background: #666; opacity: 0.5; cursor: not-allowed; }
+
+.btn-warning { background: #f59e0b; color: white; }
+.btn-warning:hover { background: #d97706; }
+
+.btn-danger { background: #ff6b6b; color: white; }
+.btn-danger:hover { background: #ff4a4a; }
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+@media (max-width: 768px) {
+    .target-header {
+        flex-direction: column;
+    }
+    
+    .target-controls {
+        align-items: stretch;
+        margin-top: 15px;
+    }
+    
+    .control-group {
+        align-items: stretch;
+    }
+    
+    .job-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .job-table {
+        font-size: 11px;
+    }
+    
+    .job-table th, .job-table td {
+        padding: 8px;
+    }
+}
+</style>
+
+<script>
+function enableTarget(targetId) {
+    if (confirm('Enable target? Jobs will be allowed to run.')) {
+        fetch(`/control/target/${targetId}/enable`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+
+function disableTarget(targetId) {
+    if (confirm('Disable target? No jobs will run until re-enabled.')) {
+        fetch(`/control/target/${targetId}/disable`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+
+function pauseTarget(targetId) {
+    if (confirm('PAUSE all activity for this target? Running jobs will be stopped.')) {
+        fetch(`/control/target/${targetId}/pause`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+
+function resumeTarget(targetId) {
+    if (confirm('Resume activity for this target?')) {
+        fetch(`/control/target/${targetId}/resume`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+
+function stopReconJob(jobId) {
+    if (confirm('Stop this recon job?')) {
+        fetch(`/control/recon/${jobId}/stop`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+
+function stopTestJob(jobId) {
+    if (confirm('Stop this test job?')) {
+        fetch(`/control/testing/${jobId}/stop`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+</script>
+{% endblock %}

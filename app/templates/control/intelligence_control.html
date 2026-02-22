@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+
+{% block title %}Intelligence Control - {{ target.name }}{% endblock %}
+
+{% block content %}
+<div class="intelligence-control">
+    <h1><i class="fas fa-brain"></i> Intelligence Control: {{ target.name }}</h1>
+    
+    <!-- STATS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total }}</div>
+            <div class="stat-label">Total Candidates</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-number">{{ stats.pending }}</div>
+            <div class="stat-label">Pending Review</div>
+        </div>
+        <div class="stat-card success">
+            <div class="stat-number">{{ stats.approved }}</div>
+            <div class="stat-label">Approved for Testing</div>
+        </div>
+        <div class="stat-card info">
+            <div class="stat-number">{{ stats.rejected }}</div>
+            <div class="stat-label">Rejected</div>
+        </div>
+    </div>
+
+    <!-- PENDING CANDIDATES (PRIORITY) -->
+    {% if pending_candidates %}
+    <div class="panel">
+        <h3><i class="fas fa-clock"></i> Pending Review ({{ pending_candidates|length }})</h3>
+        <div class="candidates-list">
+            {% for candidate in pending_candidates %}
+            <div class="candidate-card status-pending">
+                <div class="candidate-header">
+                    <div class="candidate-url">{{ candidate.endpoint_url }}</div>
+                    <div class="candidate-method">{{ candidate.http_method }}</div>
+                </div>
+                
+                <div class="candidate-details">
+                    <div class="detail-item">
+                        <span class="label">Confidence:</span>
+                        <span class="value">{{ (candidate.confidence_score * 100)|int }}%</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Risk Level:</span>
+                        <span class="value risk-{{ candidate.risk_level|lower }}">{{ candidate.risk_level }}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Reason:</span>
+                        <span class="reason">{{ candidate.reason }}</span>
+                    </div>
+                </div>
+                
+                <div class="candidate-actions">
+                    <button class="btn btn-success" onclick="approveCandidate({{ candidate.id }})">
+                        <i class="fas fa-check"></i> APPROVE
+                    </button>
+                    <button class="btn btn-danger" onclick="rejectCandidate({{ candidate.id }})">
+                        <i class="fas fa-times"></i> REJECT
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- APPROVED CANDIDATES -->
+    {% if approved_candidates %}
+    <div class="panel">
+        <h3><i class="fas fa-check-circle"></i> Approved for Testing ({{ approved_candidates|length }})</h3>
+        <table class="candidates-table">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Method</th>
+                    <th>Confidence</th>
+                    <th>Risk</th>
+                    <th>Reason</th>
+                    <th>Approved At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidate in approved_candidates %}
+                <tr>
+                    <td class="url">{{ candidate.endpoint_url }}</td>
+                    <td>{{ candidate.http_method }}</td>
+                    <td><strong>{{ (candidate.confidence_score * 100)|int }}%</strong></td>
+                    <td><span class="risk-badge risk-{{ candidate.risk_level|lower }}">{{ candidate.risk_level }}</span></td>
+                    <td>{{ candidate.reason }}</td>
+                    <td>{{ candidate.approved_at.strftime('%H:%M:%S') if candidate.approved_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- REJECTED CANDIDATES -->
+    {% if rejected_candidates %}
+    <div class="panel">
+        <h3><i class="fas fa-times-circle"></i> Rejected ({{ rejected_candidates|length }})</h3>
+        <table class="candidates-table rejected">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Method</th>
+                    <th>Confidence</th>
+                    <th>Reason for Rejection</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidate in rejected_candidates %}
+                <tr>
+                    <td class="url">{{ candidate.endpoint_url }}</td>
+                    <td>{{ candidate.http_method }}</td>
+                    <td>{{ (candidate.confidence_score * 100)|int }}%</td>
+                    <td>{{ candidate.user_notes or '(no reason recorded)' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if not pending_candidates and not approved_candidates and not rejected_candidates %}
+    <div class="panel empty">
+        <p><i class="fas fa-inbox"></i> No candidates yet</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.intelligence-control {
+    padding: 20px;
+    background: #0a0e27;
+    color: #e0e0e0;
+}
+
+.intelligence-control h1 {
+    margin-bottom: 20px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #1a1f3a 0%, #16192b 100%);
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-card.warning { border-left: 4px solid #f59e0b; }
+.stat-card.success { border-left: 4px solid #10b981; }
+.stat-card.info { border-left: 4px solid #0ea5e9; }
+
+.stat-number {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.panel {
+    background: #1a1f3a;
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.panel h3 {
+    margin: 0 0 15px 0;
+}
+
+.candidates-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 15px;
+}
+
+.candidate-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid #2a3a5a;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.candidate-card.status-pending {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.candidate-header {
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.candidate-url {
+    flex: 1;
+    font-weight: 600;
+    color: #a8d8ff;
+    word-break: break-all;
+    font-size: 13px;
+}
+
+.candidate-method {
+    padding: 4px 8px;
+    background: #0ea5e9;
+    color: white;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    whitespace: nowrap;
+}
+
+.candidate-details {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 12px;
+}
+
+.detail-item .label {
+    color: #888;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.detail-item .value {
+    color: #e0e0e0;
+    font-weight: 600;
+}
+
+.detail-item .reason {
+    color: #aaa;
+    font-style: italic;
+}
+
+.risk-low { color: #0ea5e9; }
+.risk-medium { color: #f59e0b; }
+.risk-high { color: #ff6b6b; }
+.risk-critical { color: #ff1744; }
+
+.candidate-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.candidate-actions .btn {
+    flex: 1;
+}
+
+.candidates-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.candidates-table thead {
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid #2a3a5a;
+}
+
+.candidates-table th {
+    padding: 12px;
+    text-align: left;
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+
+.candidates-table td {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.candidates-table .url {
+    color: #a8d8ff;
+    max-width: 300px;
+    word-break: break-all;
+}
+
+.risk-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.risk-badge.risk-low { background: rgba(14, 165, 233, 0.2); color: #0ea5e9; }
+.risk-badge.risk-medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+.risk-badge.risk-high { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+.risk-badge.risk-critical { background: rgba(255, 23, 68, 0.2); color: #ff1744; }
+
+.panel.empty {
+    text-align: center;
+    color: #666;
+    padding: 60px 20px;
+    font-style: italic;
+}
+
+.btn {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.btn-danger {
+    background: #ff6b6b;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #ff4a4a;
+}
+
+@media (max-width: 768px) {
+    .candidates-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .candidates-table {
+        font-size: 11px;
+    }
+    
+    .candidates-table th, .candidates-table td {
+        padding: 8px;
+    }
+    
+    .candidates-table .url {
+        max-width: 100px;
+    }
+}
+</style>
+
+<script>
+function approveCandidate(candidateId) {
+    if (confirm('Approve this candidate for testing?')) {
+        fetch(`/control/intelligence/candidate/${candidateId}/approve`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+
+function rejectCandidate(candidateId) {
+    const reason = prompt('Reason for rejection (optional):', '');
+    if (reason !== null) {
+        fetch(`/control/intelligence/candidate/${candidateId}/reject`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+                location.reload();
+            });
+    }
+}
+</script>
+{% endblock %}

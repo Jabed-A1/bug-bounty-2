@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bug Bounty Platform{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Global Kill Switch -->
+    <div id="kill-switch-banner" class="kill-switch-banner" style="display: none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>EMERGENCY STOP ACTIVATED - All operations paused</span>
+        <button onclick="deactivateKillSwitch()">Resume Operations</button>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                <h1>BugBounty<span>OPS</span></h1>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-section">
+                    <div class="nav-section-title">SOC CONTROL CENTER</div>
+                    <a href="/control/" class="nav-item {% if request.path == '/control/' %}active{% endif %}">
+                        <i class="fas fa-dashboard"></i>
+                        <span>Main Dashboard</span>
+                    </a>
+                    <a href="/control/monitor/jobs" class="nav-item {% if request.path == '/control/monitor/jobs' %}active{% endif %}">
+                        <i class="fas fa-eye"></i>
+                        <span>Job Monitor</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">PHASE 1: TARGETING</div>
+                    <a href="/dashboard" class="nav-item {% if request.path == '/dashboard' %}active{% endif %}">
+                        <i class="fas fa-list"></i>
+                        <span>All Targets</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">PHASE 2: RECON</div>
+                    <a href="/recon/jobs" class="nav-item {% if request.path.startswith('/recon/jobs') %}active{% endif %}">
+                        <i class="fas fa-satellite-dish"></i>
+                        <span>Recon Jobs</span>
+                    </a>
+                    <a href="/recon/logs" class="nav-item {% if request.path.startswith('/recon/logs') %}active{% endif %}">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Recon Logs</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">PHASE 3: INTELLIGENCE</div>
+                    <a href="/intelligence/clusters" class="nav-item {% if request.path.startswith('/intelligence/clusters') %}active{% endif %}">
+                        <i class="fas fa-project-diagram"></i>
+                        <span>Endpoint Clusters</span>
+                    </a>
+                    <a href="/intelligence/candidates" class="nav-item {% if request.path.startswith('/intelligence/candidates') %}active{% endif %}">
+                        <i class="fas fa-bullseye"></i>
+                        <span>Attack Candidates</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">PHASE 4: TESTING</div>
+                    <a href="/testing/jobs" class="nav-item {% if request.path.startswith('/testing/jobs') %}active{% endif %}">
+                        <i class="fas fa-vial"></i>
+                        <span>Test Jobs</span>
+                    </a>
+                    <a href="/findings" class="nav-item {% if request.path.startswith('/findings') %}active{% endif %}">
+                        <i class="fas fa-bug"></i>
+                        <span>Verified Findings</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">SYSTEM</div>
+                    <a href="/logs" class="nav-item {% if request.path.startswith('/logs') %}active{% endif %}">
+                        <i class="fas fa-terminal"></i>
+                        <span>System Logs</span>
+                    </a>
+                    <a href="/settings" class="nav-item {% if request.path.startswith('/settings') %}active{% endif %}">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <div class="status-item">
+                        <i class="fas fa-circle status-ok"></i>
+                        <span>Scope Check</span>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-circle status-ok"></i>
+                        <span>Rate Limit</span>
+                    </div>
+                    <div class="status-item" id="celery-status">
+                        <i class="fas fa-circle status-unknown"></i>
+                        <span>Workers</span>
+                    </div>
+                </div>
+                <button class="btn-kill-switch" onclick="activateKillSwitch()">
+                    <i class="fas fa-power-off"></i>
+                    EMERGENCY STOP
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="breadcrumb">
+                    {% block breadcrumb %}
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                    {% endblock %}
+                </div>
+                <div class="top-bar-actions">
+                    <div class="notification-bell">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge" id="notification-count">0</span>
+                    </div>
+                    <div class="user-menu">
+                        <i class="fas fa-user-circle"></i>
+                        <span>Operator</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">
+                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' }}"></i>
+                                {{ message }}
+                                <button class="alert-close" onclick="this.parentElement.remove()">×</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Content -->
+            <div class="content-wrapper">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Global Scripts -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

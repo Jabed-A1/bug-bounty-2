@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attack Candidates - Phase 3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .value-critical { color: #e74c3c; }
+        .value-high { color: #e67e22; }
+        .value-medium { color: #f39c12; }
+        .value-low { color: #3498db; }
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .filters input, .filters select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        .filters button {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .filters button:hover {
+            background: #2980b9;
+        }
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background: #34495e;
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        tr:hover {
+            background: #ecf0f1;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-critical {
+            background: #e74c3c;
+            color: white;
+        }
+        .badge-high {
+            background: #e67e22;
+            color: white;
+        }
+        .badge-medium {
+            background: #f39c12;
+            color: white;
+        }
+        .badge-low {
+            background: #3498db;
+            color: white;
+        }
+        .badge-reviewed {
+            background: #2ecc71;
+            color: white;
+        }
+        .badge-pending {
+            background: #95a5a6;
+            color: white;
+        }
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .btn-approve {
+            background: #2ecc71;
+            color: white;
+        }
+        .btn-reject {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-view {
+            background: #3498db;
+            color: white;
+        }
+        .reasoning {
+            font-size: 13px;
+            color: #555;
+            max-width: 400px;
+        }
+        .confidence {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>⚔️ Attack Candidate Queue</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total</h3>
+                <div class="value" id="stat-total">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Critical</h3>
+                <div class="value value-critical" id="stat-critical">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>High</h3>
+                <div class="value value-high" id="stat-high">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Medium</h3>
+                <div class="value value-medium" id="stat-medium">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Pending Review</h3>
+                <div class="value" id="stat-pending">-</div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <input type="number" id="target-id" placeholder="Target ID" value="1">
+            <select id="attack-type">
+                <option value="">All Types</option>
+                <option value="XSS">XSS</option>
+                <option value="SQLi">SQLi</option>
+                <option value="IDOR">IDOR</option>
+                <option value="Open Redirect">Open Redirect</option>
+                <option value="SSRF">SSRF</option>
+                <option value="LFI">LFI</option>
+                <option value="Auth Bypass">Auth Bypass</option>
+                <option value="Business Logic">Business Logic</option>
+            </select>
+            <select id="risk-level">
+                <option value="">All Risks</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <select id="reviewed">
+                <option value="false">Pending Only</option>
+                <option value="">All</option>
+                <option value="true">Reviewed</option>
+            </select>
+            <button onclick="loadCandidates()">Load Candidates</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Attack Type</th>
+                    <th>Risk</th>
+                    <th>Reasoning</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="candidates-table">
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px;">
+                        Click "Load Candidates" to view attack opportunities
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadCandidates() {
+            const targetId = document.getElementById('target-id').value;
+            const attackType = document.getElementById('attack-type').value;
+            const riskLevel = document.getElementById('risk-level').value;
+            const reviewed = document.getElementById('reviewed').value;
+            
+            const params = new URLSearchParams({
+                target_id: targetId,
+                limit: 100
+            });
+            
+            if (attackType) params.append('attack_type', attackType);
+            if (riskLevel) params.append('risk', riskLevel);
+            if (reviewed) params.append('reviewed', reviewed);
+            
+            try {
+                const response = await fetch(`/api/intel/candidates?${params}`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    renderCandidates(data.data.candidates);
+                    await loadStats(targetId);
+                }
+            } catch (error) {
+                console.error('Error loading candidates:', error);
+                alert('Error loading candidates');
+            }
+        }
+        
+        function renderCandidates(candidates) {
+            const tbody = document.getElementById('candidates-table');
+            
+            if (candidates.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">No candidates found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = candidates.map(c => `
+                <tr>
+                    <td>${c.id}</td>
+                    <td><strong>${c.attack_type}</strong></td>
+                    <td><span class="badge badge-${c.risk_level}">${c.risk_level}</span></td>
+                    <td class="reasoning">${c.reasoning}</td>
+                    <td class="confidence">${c.confidence_score}%</td>
+                    <td>
+                        ${c.reviewed ? 
+                            '<span class="badge badge-reviewed">REVIEWED</span>' : 
+                            '<span class="badge badge-pending">PENDING</span>'}
+                    </td>
+                    <td>
+                        ${!c.reviewed ? `
+                            <button class="btn btn-approve" onclick="reviewCandidate(${c.id}, true)">Approve</button>
+                            <button class="btn btn-reject" onclick="reviewCandidate(${c.id}, false)">Reject</button>
+                        ` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function loadStats(targetId) {
+            try {
+                const response = await fetch(`/api/intel/targets/${targetId}/summary`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const stats = data.data.attack_candidates;
+                    document.getElementById('stat-total').textContent = stats.total;
+                    document.getElementById('stat-critical').textContent = stats.by_risk.critical || 0;
+                    document.getElementById('stat-high').textContent = stats.by_risk.high || 0;
+                    document.getElementById('stat-medium').textContent = stats.by_risk.medium || 0;
+                    document.getElementById('stat-pending').textContent = stats.pending_review;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        
+        async function reviewCandidate(candidateId, approved) {
+            try {
+                const response = await fetch(`/api/intel/candidates/${candidateId}/review`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        approved: approved,
+                        reviewed_by: 'analyst'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert(`Candidate ${approved ? 'approved' : 'rejected'}`);
+                    loadCandidates();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error reviewing candidate');
+            }
+        }
+        
+        window.addEventListener('load', () => {
+            loadCandidates();
+        });
+    </script>
+</body>
+</html>
